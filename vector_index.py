@@ -3,7 +3,8 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core import StorageContext, VectorStoreIndex
 import chromadb.utils.embedding_functions as embedding_functions
 
-from llama_index.vector_stores.qdrant import QdrantVectorStore
+# from llama_index.vector_stores.qdrant import QdrantVectorStore
+from .mys.vector_store import MyQdrantVectorStore
 from qdrant_client import QdrantClient, AsyncQdrantClient
 
 from llama_index.core.schema import BaseNode
@@ -76,8 +77,7 @@ def get_vector_index(
         model_tokenizer_dict = load_sparse_model()
 
         # create our vector store with hybrid indexing enabled
-        vector_store = QdrantVectorStore(
-            "squad_sub",
+        vector_store = MyQdrantVectorStore(
             client=client,
             aclient=aclient,
             enable_hybrid=True,
