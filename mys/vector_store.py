@@ -5,6 +5,7 @@ from llama_index.core.vector_stores.utils import (
     # metadata_dict_to_node,
 )
 
+
 from .utils import metadata_dict_to_node
 
 from qdrant_client.http.models import Payload
@@ -12,6 +13,14 @@ from qdrant_client.http.models import Payload
 from .node import MyTextNode, TextNode
 
 from typing import Any, List, cast
+
+from qdrant_client.http.models import (
+    Payload,
+)
+
+DENSE_VECTOR_NAME = "text-dense"
+SPARSE_VECTOR_NAME_OLD = "text-sparse"
+SPARSE_VECTOR_NAME = "text-sparse-new"
 
 
 class MyQdrantVectorStore(QdrantVectorStore):

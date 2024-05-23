@@ -14,7 +14,10 @@ import os
 from typing import Optional, Sequence, Dict
 
 from .globals import logger
-from .sparse import load_sparse_model, make_sparse_vectors_func
+
+# from .sparse import load_sparse_model, make_sparse_vectors_func
+
+from llmparty.demo.rag_based_chat.embedding import BGEM3TritonEmbeddings as Embeddings
 
 
 class USING_DB(str, Enum):
@@ -25,23 +28,18 @@ class USING_DB(str, Enum):
 def get_vector_index(
     nodes: Optional[Sequence[BaseNode]] = None,
     usingdb: USING_DB = USING_DB.QDRANT,
-    qdrant_kwargs: Dict = {},
+    embedding: Embeddings = Embeddings(),
+    vectorstore_config: Dict = None,
 ):
     logger.info("Building/Getting Vector Index")
     logger.info(f"Using {usingdb}")
 
-    # openai_ef = embedding_functions.OpenAIEmbeddingFunction(
-    #                 api_key=os.getenv('OPENAI_API_KEY'),
-    #                 api_base=os.getenv('OPENAI_API_BASE'),
-    #             )
-
-    huggingface_ef = embedding_functions.HuggingFaceEmbeddingFunction(
-        model_name="BAAI/bge-m3", api_key=os.getenv("HUGGINGFACE_API_KEY")
-    )
-
     if usingdb == USING_DB.CHROMA:
         # initialize client, setting path to save data
         db = chromadb.PersistentClient(path="./chroma")
+        huggingface_ef = embedding_functions.HuggingFaceEmbeddingFunction(
+            model_name="BAAI/bge-m3", api_key=os.getenv("HUGGINGFACE_API_KEY")
+        )
 
         # create collection
         chroma_collection = db.get_or_create_collection(
@@ -66,30 +64,23 @@ def get_vector_index(
                 vector_store=vector_store, embed_model="local:BAAI/bge-m3"
             )
 
-        # print(f"#{vector_index._vector_store._collection.count()} nodes indexed.")
         logger.info(f"#{vector_index._vector_store._collection.count()} nodes indexed.")
 
     elif usingdb == USING_DB.QDRANT:
-        # creates a persistant index to disk
-        client = QdrantClient(host="localhost", port=6333)
-        aclient = AsyncQdrantClient(host="localhost", port=6333)
+        qdrant_kwargs: Dict = vectorstore_config.get("qdrant_kwargs", {})
 
-        model_tokenizer_dict = load_sparse_model()
+        url = qdrant_kwargs.pop("url", "http://localhost:6333")
+        # creates a persistant index to disk
+        client = QdrantClient(url=url)
+        aclient = AsyncQdrantClient(url=url)
 
         # create our vector store with hybrid indexing enabled
         vector_store = MyQdrantVectorStore(
             client=client,
             aclient=aclient,
-            enable_hybrid=True,
             batch_size=32,
-            sparse_doc_fn=make_sparse_vectors_func(
-                model=model_tokenizer_dict["doc_model"],
-                tokenizer=model_tokenizer_dict["doc_tokenizer"],
-            ),
-            sparse_query_fn=make_sparse_vectors_func(
-                model=model_tokenizer_dict["query_model"],
-                tokenizer=model_tokenizer_dict["query_tokenizer"],
-            ),
+            sparse_doc_fn=embedding.as_sparse_doc_fn(),
+            sparse_query_fn=embedding.as_sparse_query_fn(),
             **qdrant_kwargs,
         )
 
@@ -100,18 +91,21 @@ def get_vector_index(
                 nodes,
                 insert_batch_size=128,
                 storage_context=storage_context,
-                embed_model="local:BAAI/bge-m3",
+                # embed_model="local:BAAI/bge-m3",
+                embed_model=embedding,
                 show_progress=True,
             )
         else:
             vector_index = VectorStoreIndex.from_vector_store(
                 vector_store=vector_store,
-                embed_model="local:BAAI/bge-m3",
+                embed_model=embedding,
                 show_progress=True,
             )
 
     else:
-        # raise a error
-        raise ValueError("Invalid value for 'usingdb'")
+        raise NotImplementedError(f"Invalid value for usingdb, got: {usingdb}")
+        # raise ValueError(
+        #     "Invalid value for usingdb, must be either 'chroma' or 'qdrant', got: {usingdb}"
+        # )
 
     return vector_index

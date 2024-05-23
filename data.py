@@ -212,7 +212,7 @@ def create_nodes(text_chunks: dict):
 
 
 class QADataSet:
-    def __init__(self):
+    def __init__(self, qa_dataset: dict = None):
         self.csvs = dict(
             task1="./data/Task1-20_Q&A.csv",
             task2_p1="./data/Task2-80_Q&A(New)_p1.csv",
@@ -221,20 +221,50 @@ class QADataSet:
         self.tables = {key: pd.read_csv(value) for key, value in self.csvs.items()}
         # merge all tables
         self.table = pd.concat(self.tables.values(), ignore_index=True)
+        self._generate_ground_truth()
+
+        self.qa_dataset = qa_dataset
 
     def _get_column_from_table(self, column_name):
         return {
-            str(create_uuid_from_string(value)): value
-            for _, value in self.table[column_name].items()
+            str(create_uuid_from_string(str(idx) + value)): value
+            for idx, value in enumerate(self.table[column_name].values)
         }
+
+    def _generate_ground_truth(self):
+        def _generate_ground_truth_func(row):
+            if (
+                pd.isna(row["Checking Result"])
+                or row["Checking Result"].strip().lower() == "correct"
+            ):
+                return row["Answer"]
+            else:
+                # remove "Correct"
+                try:
+                    res = row["Checking Result"].split("Correct")[1].strip()
+                except IndexError:
+                    res = row["Checking Result"].split("Incorrect")[1].strip()
+                # remove "Note" and the following text
+                return res.split("Note")[0].strip()
+
+        self.table["Ground Truth"] = self.table.apply(
+            _generate_ground_truth_func, axis=1
+        )
 
     def persist(self, filepath="./data/qa_dataset.json"):
         with open(filepath, "w") as json_file:
             json.dump(self.qa_dataset, json_file, indent=4)
 
-    def from_persist_path(self, filepath="./data/qa_dataset.json"):
+    def as_EmbeddingQAFinetuneDataset(self, filepath="./data/qa_dataset.json"):
+        from llama_index.core.evaluation import EmbeddingQAFinetuneDataset
+
+        return EmbeddingQAFinetuneDataset.from_json(filepath)
+
+    @classmethod
+    def from_persist_path(cls, filepath="./data/qa_dataset.json"):
         with open(filepath, "r") as json_file:
-            self.qa_dataset = json.load(json_file)
+            qa_dataset = json.load(json_file)
+        return cls(qa_dataset=qa_dataset)
 
     @classmethod
     def from_nodes(cls, nodes, retriever: BaseRetriever, keep_num: int = 1):
@@ -244,11 +274,12 @@ class QADataSet:
         """
         instance = cls()
 
-        ans_all = instance._get_column_from_table("Answer")
+        # ans_all = instance._get_column_from_table("Answer")
         qst_all = instance._get_column_from_table("Question")
+        grd_all = instance._get_column_from_table("Ground Truth")
         labels = []
 
-        for _, ans_text in ans_all.items():
+        for _, ans_text in grd_all.items():
             retrieved_nodes = retriever.retrieve(ans_text)
             keep_nodes_ids = [node.node.node_id for node in retrieved_nodes[:keep_num]]
             labels.append(

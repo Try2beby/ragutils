@@ -22,7 +22,7 @@ def set_device(num: int):
 CONSOLE = Console()
 VERBOSE = True
 USE_FIRST_N_DATA = 5000
-QA_DATASET = "./data/qa_squad_dataset_sub_uuid.json"
+# QA_DATASET = "./data/qa_squad_dataset_sub_uuid.json"
 LOG_DIR = "./log"
 DATA_DIR = "./data"
 STORE_DIR = "./store"

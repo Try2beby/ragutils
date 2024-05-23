@@ -15,34 +15,16 @@ from typing import Dict, Optional
 from .globals import IS_JUPYTER, CONSOLE, get_device, logger
 from .utils import display_source_node_cmd, display_source_node
 
+import sys
 
-# def get_dense_sparse_retriever(
-#     docstore: Optional[BaseDocumentStore],
-#     vector_index: VectorStoreIndex,
-#     vector_retriever_kwargs: Dict = {},
-# ):
-#     # retireve the top 10 most similar nodes using embeddings
-#     vector_retriever = vector_index.as_retriever(
-#         similarity_top_k=20, **vector_retriever_kwargs
-#     )
-#     # vector_retriever = TruncateRetriever(vector_retriever, top_n=5)
-
-#     # retireve the top 10 most similar nodes using bm25
-#     # docstore = SimpleDocumentStore.from_persist_path("./store/docstore.json")
-#     sparse_retriever = BM25Retriever.from_defaults(
-#         docstore=docstore, similarity_top_k=20
-#     )
-
-#     return vector_retriever, sparse_retriever
+sys.path.append("..")
 
 
 def get_vector_retriever(
     vector_index: VectorStoreIndex,
     vector_retriever_kwargs: Dict = {},
 ):
-    vector_retriever = vector_index.as_retriever(
-        similarity_top_k=20, **vector_retriever_kwargs
-    )
+    vector_retriever = vector_index.as_retriever(**vector_retriever_kwargs)
 
     return vector_retriever
 
@@ -71,6 +53,13 @@ def get_retriever_with_rerank(
     return RetrieverWithReRank(retriever=retriever, reranker=reranker)
 
 
+def get_retriever_with_rerank_triton(retriever, reranker_config):
+    from .reranker import create_reranker
+
+    reranker = create_reranker(**reranker_config)
+    return RetrieverWithReRank(retriever=retriever, reranker=reranker)
+
+
 def get_query_fusion_retriever(
     retrievers=[],
     top_n: int = 5,
@@ -78,7 +67,7 @@ def get_query_fusion_retriever(
     similarity_top_k: int = 20,
     query_gen_prompt: str = None,
 ):
-    return myQueryFusionRetriever(
+    return MyQueryFusionRetriever(
         retrievers=retrievers,
         similarity_top_k=similarity_top_k,
         top_n=top_n,

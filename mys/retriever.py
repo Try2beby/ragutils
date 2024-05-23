@@ -1,5 +1,4 @@
 # 导入整个模块
-from typing import Coroutine, List
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core.indices.vector_store.retrievers import VectorIndexRetriever
 
@@ -8,7 +7,9 @@ from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.core.schema import NodeWithScore, QueryBundle
 from llama_index.core.vector_stores.types import VectorStoreQuery
 
-from typing import Any
+from ..reranker import FusedReranker
+
+from typing import Any, Coroutine, List
 
 
 class SimpleHybridRetriever(BaseRetriever):
@@ -47,6 +48,33 @@ class SimpleHybridRetriever(BaseRetriever):
         return all_nodes
 
 
+class FuseRetriever(BaseRetriever):
+    def __init__(
+        self,
+        vector_retriever: BaseRetriever,
+        sparse_retriever: BaseRetriever,
+        fuse_reranker: FusedReranker,
+    ):
+        self.vector_retriever = vector_retriever
+        self.sparse_retriever = sparse_retriever
+        self.fuse_reranker = fuse_reranker
+
+    def _retrieve(self, query_bundle, **kwargs):
+        dense_results = self.vector_retriever.retrieve(query_bundle, **kwargs)
+        sparse_results = self.sparse_retriever.retrieve(query_bundle, **kwargs)
+
+        return self.fuse_reranker.rerank_documents_with_scores(
+            [dense_results, sparse_results]
+        )
+
+    async def _aretrieve(self, query_bundle, **kwargs):
+        dense_results = await self.vector_retriever.aretrieve(query_bundle, **kwargs)
+        sparse_results = await self.sparse_retriever.aretrieve(query_bundle, **kwargs)
+        return self.fuse_reranker.rerank_documents_with_scores(
+            [dense_results, sparse_results]
+        )
+
+
 class RetrieverWithReRank(BaseRetriever):
     def __init__(self, retriever, reranker):
         self.retriever = retriever
@@ -70,19 +98,20 @@ class RetrieverWithReRank(BaseRetriever):
         )
         return reranked_nodes
 
-    def retrieve(
-        self,
-        str_or_query_bundle: str | QueryBundle,
-        top_n: int = 20,
-    ) -> List[NodeWithScore]:
-        return super().retrieve(str_or_query_bundle)[:top_n]
+    # def retrieve(
+    #     self,
+    #     str_or_query_bundle: str | QueryBundle,
+    #     top_n: int = 20,
+    # ) -> List[NodeWithScore]:
+    #     return super().retrieve(str_or_query_bundle)[:top_n]
 
-    def aretrieve(
-        self,
-        str_or_query_bundle: str | QueryBundle,
-        top_n: int = 20,
-    ) -> Coroutine[Any, Any, List[NodeWithScore]]:
-        return super().aretrieve(str_or_query_bundle)[:top_n]
+    # async def aretrieve(
+    #     self,
+    #     str_or_query_bundle: str | QueryBundle,
+    #     top_n: int = 20,
+    # ) -> Coroutine[Any, Any, List[NodeWithScore]]:
+    #     results = await super().aretrieve(str_or_query_bundle)
+    #     return results[:top_n]
 
 
 class MyQueryFusionRetriever(QueryFusionRetriever):

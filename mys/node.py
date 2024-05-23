@@ -28,6 +28,7 @@ class MyTextNode(TextNode):
     def class_name(cls) -> str:
         return "TextCtxNode"
 
+    @classmethod
     def get_type(cls) -> str:
         """Get Object type."""
         return ObjectType.TEXT_CTX
