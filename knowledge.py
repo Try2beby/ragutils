@@ -9,7 +9,7 @@ from .retriever import (
 from .metrics.beir import MyBeirEvaluator
 
 from .vector_index import get_vector_index, VectorStoreIndex
-from .embedding import get_embedding_model
+from .embeding.embedding import get_embedding_model
 from .globals import logger
 
 import sys

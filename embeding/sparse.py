@@ -1,7 +1,7 @@
 from typing import Any, List, Tuple
 import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM
-from .globals import get_device
+from ..globals import get_device
 
 
 def load_sparse_model():

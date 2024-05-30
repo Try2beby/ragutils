@@ -18,6 +18,7 @@ from .globals import logger
 # from .sparse import load_sparse_model, make_sparse_vectors_func
 
 from llmparty.demo.rag_based_chat.embedding import BGEM3TritonEmbeddings as Embeddings
+from .embeding.dense import MultilingualEmbeddings
 
 
 class USING_DB(str, Enum):
@@ -33,6 +34,13 @@ def get_vector_index(
 ):
     logger.info("Building/Getting Vector Index")
     logger.info(f"Using {usingdb}")
+
+    use_multilingual = vectorstore_config.get("use_multilingual", False)
+    logger.info(f"Using Multilingual: {use_multilingual}")
+    if use_multilingual:
+        dense_embedding = MultilingualEmbeddings()
+    else:
+        dense_embedding = embedding
 
     if usingdb == USING_DB.CHROMA:
         # initialize client, setting path to save data
@@ -92,13 +100,14 @@ def get_vector_index(
                 insert_batch_size=128,
                 storage_context=storage_context,
                 # embed_model="local:BAAI/bge-m3",
-                embed_model=embedding,
+                # embed_model=embedding,
+                embed_model=dense_embedding,
                 show_progress=True,
             )
         else:
             vector_index = VectorStoreIndex.from_vector_store(
                 vector_store=vector_store,
-                embed_model=embedding,
+                embed_model=dense_embedding,
                 show_progress=True,
             )
 
