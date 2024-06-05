@@ -44,9 +44,8 @@ class Data:
         chunk_size = self.chunk_options["chunk_size"]
         chunk_overlap = self.chunk_options["chunk_overlap"]
         context_window = self.context_windows
-        store = os.path.join(
-            "./store", f"docstore_{chunk_size}_{chunk_overlap}_{context_window}.json"
-        )
+        self.config_spec = f"{chunk_size}_{chunk_overlap}_{context_window}"
+        store = os.path.join("./store", f"docstore_{self.config_spec}.json")
         self.paths = dict(
             data="./data",
             store=store,

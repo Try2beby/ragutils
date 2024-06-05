@@ -18,16 +18,11 @@ from llama_index.core.base.llms.generic_utils import (
 )
 
 from openai import OpenAI
-
-
 from .api import api_generate
 
 
 def messages_to_dict(messages: Sequence[ChatMessage]) -> List[Mapping[str, str]]:
-    messages_dict = []
-    for message in messages:
-        messages_dict.append({"role": message.role, "content": message.content})
-    return messages_dict
+    return [{"role": message.role, "content": message.content} for message in messages]
 
 
 class Llama3(CustomLLM):
@@ -45,7 +40,7 @@ class Llama3(CustomLLM):
             context_window=self.context_window,
             num_output=self.num_output,
             model_name=self.model_name,
-            is_chat_model=True,
+            is_chat_model=self.is_chat_model,
         )
 
     @llm_chat_callback()
@@ -122,7 +117,7 @@ class DeepSeek(CustomLLM):
             context_window=self.context_window,
             num_output=self.num_output,
             model_name=self.model_name,
-            is_chat_model=True,
+            is_chat_model=self.is_chat_model,
         )
 
     @llm_chat_callback()
@@ -165,3 +160,12 @@ class DeepSeek(CustomLLM):
             temperature=temperature,
         )
         yield from response
+
+
+def get_custom_llm(llm_name: str) -> CustomLLM:
+    if llm_name == "Llama3":
+        return Llama3()
+    elif llm_name == "DeepSeek":
+        return DeepSeek()
+    else:
+        raise ValueError(f"Unknown LLM name: {llm_name}")

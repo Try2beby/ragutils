@@ -77,10 +77,10 @@ def get_vector_index(
     elif usingdb == USING_DB.QDRANT:
         qdrant_kwargs: Dict = vectorstore_config.get("qdrant_kwargs", {})
 
-        url = qdrant_kwargs.pop("url", "http://localhost:6333")
+        url = qdrant_kwargs.pop("url", "http://localhost")
         # creates a persistant index to disk
-        client = QdrantClient(url=url)
-        aclient = AsyncQdrantClient(url=url)
+        client = QdrantClient(url=url, prefer_grpc=True)
+        aclient = AsyncQdrantClient(url=url, prefer_grpc=True)
 
         # create our vector store with hybrid indexing enabled
         vector_store = MyQdrantVectorStore(
@@ -113,8 +113,96 @@ def get_vector_index(
 
     else:
         raise NotImplementedError(f"Invalid value for usingdb, got: {usingdb}")
-        # raise ValueError(
-        #     "Invalid value for usingdb, must be either 'chroma' or 'qdrant', got: {usingdb}"
-        # )
 
     return vector_index
+
+
+from .llms.custom_llms import get_custom_llm
+from llama_index.core.embeddings.utils import resolve_embed_model
+from llama_index.core import get_response_synthesizer
+from llama_index.core import DocumentSummaryIndex
+
+
+def get_document_summary_index(
+    nodes: Optional[Sequence[BaseNode]] = None,
+    usingdb: USING_DB = USING_DB.QDRANT,
+    embedding: Embeddings = Embeddings(),
+    document_summary_config: Dict = None,
+):
+    logger.info("Building/Getting Vector Index")
+    logger.info(f"Using {usingdb}")
+
+    use_multilingual = document_summary_config.get("use_multilingual", False)
+    logger.info(f"Using Multilingual: {use_multilingual}")
+    if use_multilingual:
+        dense_embedding = MultilingualEmbeddings()
+    else:
+        dense_embedding = embedding
+
+    if usingdb == USING_DB.CHROMA:
+        raise NotImplementedError("Chroma support not implemented yet")
+
+    elif usingdb == USING_DB.QDRANT:
+        qdrant_kwargs: Dict = document_summary_config.get("qdrant_kwargs", {})
+
+        url = qdrant_kwargs.pop("url", "http://localhost")
+        # creates a persistant index to disk
+        client = QdrantClient(url=url, prefer_grpc=True)
+        aclient = AsyncQdrantClient(url=url, prefer_grpc=True)
+
+        # create our vector store with hybrid indexing enabled
+        vector_store = MyQdrantVectorStore(
+            client=client,
+            aclient=aclient,
+            batch_size=32,
+            sparse_doc_fn=embedding.as_sparse_doc_fn(),
+            sparse_query_fn=embedding.as_sparse_query_fn(),
+            **qdrant_kwargs,
+        )
+
+        llm = get_custom_llm(document_summary_config.get("llm", "DeepSeek"))
+        embed_model = resolve_embed_model(dense_embedding)
+        storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
+        response_synthesizer = get_response_synthesizer(
+            response_mode="tree_summarize", use_async=True, llm=llm
+        )
+
+        if nodes is not None:
+            doc_summary_index = DocumentSummaryIndex(
+                nodes,
+                llm=llm,
+                response_synthesizer=response_synthesizer,
+                show_progress=True,
+                embed_model=embed_model,
+                storage_context=storage_context,
+            )
+        else:
+            from llama_index.core.indices.loading import (
+                load_index_from_storage,
+            )
+            from ragutils.mys.docstore import MySimpleDocumentStore
+
+            docstore = MySimpleDocumentStore.from_persist_dir(
+                f"./summary_index/{qdrant_kwargs['collection_name']}"
+            )
+
+            storage_context = StorageContext.from_defaults(
+                docstore=docstore,
+                persist_dir=f"./summary_index/{qdrant_kwargs['collection_name']}",
+                vector_store=vector_store,
+            )
+            response_synthesizer = get_response_synthesizer(
+                response_mode="tree_summarize", use_async=True, llm=llm
+            )
+            doc_summary_index = load_index_from_storage(
+                storage_context,
+                llm=llm,
+                response_synthesizer=response_synthesizer,
+                embed_model=embed_model,
+            )
+
+    else:
+        raise NotImplementedError(f"Invalid value for usingdb, got: {usingdb}")
+
+    return doc_summary_index

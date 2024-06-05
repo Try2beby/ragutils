@@ -1,16 +1,18 @@
 from llama_index.retrievers.bm25 import BM25Retriever
-from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.core.storage.docstore.types import BaseDocumentStore
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core import VectorStoreIndex
 from llama_index.core.postprocessor import SentenceTransformerRerank
+from llama_index.core.indices.document_summary.base import DocumentSummaryIndex
 from .mys.retriever import (
     SimpleHybridRetriever,
     RetrieverWithReRank,
     MyQueryFusionRetriever,
     # TruncateRetriever,
 )
-from typing import Dict, Optional
+from .mys.document_summary_retriever import DocumentSummaryIndexEmbeddingRetriever
+
+from typing import Dict, Optional,Any
 
 from .globals import IS_JUPYTER, CONSOLE, get_device, logger
 from .utils import display_source_node_cmd, display_source_node
@@ -76,6 +78,15 @@ def get_query_fusion_retriever(
         use_async=True,
         verbose=False,
         query_gen_prompt=query_gen_prompt,
+    )
+
+
+def get_document_summary_retriever(index: DocumentSummaryIndex, **kwargs: Any):
+    return DocumentSummaryIndexEmbeddingRetriever(
+        index=index,
+        object_map=index._object_map,
+        embed_model=index._embed_model,
+        **kwargs,
     )
 
 
